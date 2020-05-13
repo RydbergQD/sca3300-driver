@@ -4,7 +4,7 @@ setup file for package description, content etc.
 
 from setuptools import setup, find_packages
 from os import path
-from utils.version import __VERSION__
+from sca3300.utils.version import __VERSION__
 
 # read the contents of your README file
 current_dir = path.abspath(path.dirname(__file__))

@@ -30,7 +30,7 @@ It uses digital SPI interface for Raspberry Pi.
 
 import spidev
 
-from utils.constant import Constant
+from sca3300.utils.constant import Constant
 
 _STANDARD_GRAVITY = 9.80665  # m/s^2
 
