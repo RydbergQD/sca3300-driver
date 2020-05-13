@@ -4,7 +4,7 @@ setup file for package description, content etc.
 
 from setuptools import setup
 from os import path
-from utils.version import __VERSION__
+#from utils.version import __VERSION__
 
 # read the contents of your README file
 current_dir = path.abspath(path.dirname(__file__))
