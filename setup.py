@@ -4,14 +4,13 @@ setup file for package description, content etc.
 
 from setuptools import setup
 from os import path
-#from utils.version import __VERSION__
+from utils.version import __VERSION__
 
 # read the contents of your README file
 current_dir = path.abspath(path.dirname(__file__))
 with open(path.join(current_dir, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-__VERSION__ = '1.0.1'
 setup(
     name='sca3300',
     description='SCA3300 Linux driver with dependency on just spidev',
