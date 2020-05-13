@@ -2,7 +2,7 @@
 setup file for package description, content etc.
 """
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from os import path
 from utils.version import __VERSION__
 
@@ -32,5 +32,6 @@ setup(
         'Programming Language :: Python :: 3.5',
     ],
     keywords='sca3300 raspberry pi acceleration spi device hardware',
-    py_modules=['sca3300', 'utils']
+    py_modules=['sca3300', 'utils'],
+    packages=find_packages(),
 )
