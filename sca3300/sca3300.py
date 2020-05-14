@@ -29,6 +29,7 @@ It uses digital SPI interface for Raspberry Pi.
 """
 
 import spidev
+from binascii import crc32
 
 from sca3300.utils.constant import Constant
 
@@ -82,7 +83,32 @@ class SCA3300:
         self._current_mode = _MODE_3
         # Only mode 0 is supported!
         self._spi.mode = 0
-        self._spi.xfer2(_MODE_3.value.to_bytes(length=4, byteorder='big'))
+        self._spi.xfer(_MODE_3.value.to_bytes(length=4, byteorder='big'))
+        self.buffer = 1
+
+    def transmit_4(self, data):
+        if type(data) == Constant:
+            buffer = data.value.to_bytes(length=4, byteorder='big')
+        elif type(data) == int:
+            buffer = data.to_bytes(length=4, byteorder='big')
+        else:
+            print("WARNING: input no Constant or str ")
+            return 0
+        out = self._spi.xfer(buffer)
+        self.buffer = buffer
+        return out
+
+    def transmit_1(self, data):
+        if type(data) == Constant:
+            buffer = data.value.to_bytes(length=1, byteorder='big')
+        elif type(data) == int:
+            buffer = data.to_bytes(length=1, byteorder='big')
+        else:
+            print("WARNING: input no Constant or str ")
+            return 0
+        out = self._spi.xfer(buffer)
+        self.buffer = buffer
+        return out
 
     @property
     def mode(self) -> Modes:
@@ -109,7 +135,26 @@ class SCA3300:
             self._current_mode = _MODE_3
         else:
             self._current_mode = _MODE_4
+
         self._spi.xfer2(self._current_mode.value.to_bytes(length=4, byteorder='big'))
+
+    @property
+    def raw_data(self):
+        self._spi.xfer2(_READ_ACC_X.value.to_bytes(length=4, byteorder='big'))
+        self.result_x = self.transmit_4(_READ_ACC_Y)
+        self.result_y = self.transmit_4(_READ_ACC_Z)
+        self.result_z = self.transmit_4(_READ_ACC_X)
+        return self.result_x, self.result_y, self.result_z
+
+    def who_am_i(self):
+        self.transmit_4(_WHO_AM_I)
+        out = self.transmit_4(_WHO_AM_I)
+        return out
+
+    def self_test(self):
+        self.transmit_4(_SELF_TEST)
+        out = self.transmit_4(_SELF_TEST)
+        return out
 
     @property
     def acceleration(self) -> tuple:
@@ -119,6 +164,7 @@ class SCA3300:
         is different.
         :return: float list as three axis data
         """
+        self._spi.xfer2(_READ_ACC_X.value.to_bytes(length=4, byteorder='big'))
         result_x = self._spi.xfer2(_READ_ACC_Y.value.to_bytes(length=4, byteorder='big'))
         x = self._convert_acceleration(result_x[1], result_x[2]) * _STANDARD_GRAVITY
         result_y = self._spi.xfer2(_READ_ACC_Z.value.to_bytes(length=4, byteorder='big'))
