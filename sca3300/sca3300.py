@@ -30,6 +30,8 @@ It uses digital SPI interface for Raspberry Pi.
 
 import spidev
 from binascii import crc32
+from math import acos
+import numpy as np
 
 from sca3300.utils.constant import Constant
 
@@ -48,9 +50,9 @@ _MODE_2 = Constant(0xB4000102)
 _MODE_3 = Constant(0xB4000225)
 _MODE_4 = Constant(0xB4000338)
 
-_MODE_1_SENSITIVITY = Constant(2700)
-_MODE_2_SENSITIVITY = Constant(1350)
-_MODE_3_SENSITIVITY = Constant(5400)
+_MODE_1_SENSITIVITY = Constant(6000)
+_MODE_2_SENSITIVITY = Constant(3000)
+_MODE_3_SENSITIVITY = Constant(12000)
 
 
 class Modes:
@@ -76,7 +78,10 @@ class SCA3300:
     :param device: Which device is accelerometer?
     """
 
-    def __init__(self, max_speed: int = 7629, bus: int = 0, device: int = 0) -> None:
+    def __init__(self, max_speed: int = 7629, bus: int = 0, device: int = 0, calibration=None) -> None:
+        if calibration is None:
+            calibration = [12000, 12000, 12000]
+        self._calibration = np.array(calibration)
         self._spi = spidev.SpiDev()
         self._spi.open(bus, device)
         self._spi.max_speed_hz = max_speed
@@ -85,7 +90,7 @@ class SCA3300:
         self._spi.mode = 0
         self._spi.xfer(_MODE_3.value.to_bytes(length=4, byteorder='big'))
         self.buffer = 1
-
+        self._null_angles=0
     def transmit_4(self, data):
         if type(data) == Constant:
             buffer = data.value.to_bytes(length=4, byteorder='big')
@@ -138,13 +143,13 @@ class SCA3300:
 
         self._spi.xfer2(self._current_mode.value.to_bytes(length=4, byteorder='big'))
 
-    @property
-    def raw_data(self):
+
+    def read_sensor(self):
         self._spi.xfer2(_READ_ACC_X.value.to_bytes(length=4, byteorder='big'))
-        self.result_x = self.transmit_4(_READ_ACC_Y)
-        self.result_y = self.transmit_4(_READ_ACC_Z)
-        self.result_z = self.transmit_4(_READ_ACC_X)
-        return self.result_x, self.result_y, self.result_z
+        raw_x = self.transmit_4(_READ_ACC_Y)
+        raw_y = self.transmit_4(_READ_ACC_Z)
+        raw_z = self.transmit_4(_READ_ACC_X)
+        return raw_x, raw_y, raw_z
 
     def who_am_i(self):
         self.transmit_4(_WHO_AM_I)
@@ -164,18 +169,31 @@ class SCA3300:
         is different.
         :return: float list as three axis data
         """
-        self._spi.xfer2(_READ_ACC_X.value.to_bytes(length=4, byteorder='big'))
-        result_x = self._spi.xfer2(_READ_ACC_Y.value.to_bytes(length=4, byteorder='big'))
-        x = self._convert_acceleration(result_x[1], result_x[2]) * _STANDARD_GRAVITY
-        result_y = self._spi.xfer2(_READ_ACC_Z.value.to_bytes(length=4, byteorder='big'))
-        y = self._convert_acceleration(result_y[1], result_y[2]) * _STANDARD_GRAVITY
-        result_z = self._spi.xfer2(_READ_ACC_X.value.to_bytes(length=4, byteorder='big'))
-        z = self._convert_acceleration(result_z[1], result_z[2]) * _STANDARD_GRAVITY
-        return x, y, z
+        raw = self.read_sensor()
+        return [self._convert_acceleration(bytes[1], bytes[2]) for bytes in raw]
+
+    @property
+    def data(self):
+        data = self.read_sensor()
+        return np.array([self._convert_to_signed(bytes[1], bytes[2]) for bytes in data])
+
+    @property
+    def angles(self):
+        try:
+            return np.arccos(self.data / self._calibration)
+        except ValueError as e:
+            print(e)
+            return np.array([0, 0, 0])
+
+    def null(self):
+        self._null_angles = self.angles
+
+    @property
+    def relative_angles(self):
+        return np.array(self.angles-self._null_angles)
 
     def _convert_acceleration(self, first_byte: str, second_byte: str) -> float:
-        overall = hex(int(first_byte) << 8 | int(second_byte))
-        signed_value = self.to_signed(int(overall, 16))
+        signed_value = self.to_int(first_byte, second_byte)
         if self._current_mode is _MODE_1:
             return signed_value / _MODE_1_SENSITIVITY.value
         elif self._current_mode is _MODE_2:
@@ -184,5 +202,14 @@ class SCA3300:
             return signed_value / _MODE_3_SENSITIVITY.value
 
     @staticmethod
-    def to_signed(value: int) -> int:
+    def _convert_to_unsigned(byte1, byte2) -> int:
+        return byte1 << 8 | byte2
+
+    @staticmethod
+    def _convert_to_signed(first_byte: str, second_byte: str):
+        value = int(first_byte) << 8 | int(second_byte)
         return -(value & 0x8000) | (value & 0x7fff)
+
+
+
+
