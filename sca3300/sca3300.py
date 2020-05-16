@@ -90,7 +90,8 @@ class SCA3300:
         self._spi.mode = 0
         self._spi.xfer(_MODE_3.value.to_bytes(length=4, byteorder='big'))
         self.buffer = 1
-        self._null_angles=0
+        self._null_angles = 0
+
     def transmit_4(self, data):
         if type(data) == Constant:
             buffer = data.value.to_bytes(length=4, byteorder='big')
@@ -143,7 +144,6 @@ class SCA3300:
 
         self._spi.xfer2(self._current_mode.value.to_bytes(length=4, byteorder='big'))
 
-
     def read_sensor(self):
         self._spi.xfer2(_READ_ACC_X.value.to_bytes(length=4, byteorder='big'))
         raw_x = self.transmit_4(_READ_ACC_Y)
@@ -161,8 +161,12 @@ class SCA3300:
         out = self.transmit_4(_SELF_TEST)
         return out
 
+    def calibrate_norm(self):
+        norm = np.sqrt(np.sum(self.data**2))
+        self._calibration = np.full_like(self.data, norm)
+
     @property
-    def acceleration(self) -> tuple:
+    def acceleration(self):
         """
         Here we return X, Y and Z data.
         It sends current request's response in next SPI frame. Therefore, the order
@@ -190,10 +194,10 @@ class SCA3300:
 
     @property
     def relative_angles(self):
-        return np.array(self.angles-self._null_angles)
+        return np.array(self.angles - self._null_angles)
 
     def _convert_acceleration(self, first_byte: str, second_byte: str) -> float:
-        signed_value = self.to_int(first_byte, second_byte)
+        signed_value = self._convert_to_signed(first_byte, second_byte)
         if self._current_mode is _MODE_1:
             return signed_value / _MODE_1_SENSITIVITY.value
         elif self._current_mode is _MODE_2:
@@ -209,7 +213,3 @@ class SCA3300:
     def _convert_to_signed(first_byte: str, second_byte: str):
         value = int(first_byte) << 8 | int(second_byte)
         return -(value & 0x8000) | (value & 0x7fff)
-
-
-
-
